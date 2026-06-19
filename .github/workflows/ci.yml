@@ -1,0 +1,130 @@
+name: CI
+
+# Runs the full test suite on every push and PR to the single `main` branch.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend (lint + tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      # Pinned to full commit SHAs for supply-chain security (Dependabot
+      # will open PRs when new versions are available).
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Lint (ruff)
+        run: ruff check .
+      - name: Format check (ruff)
+        run: ruff format --check .
+      - name: Type check (mypy, strict)
+        run: mypy app
+      - name: Tests (pytest, coverage gate ≥90%)
+        run: pytest
+
+  frontend:
+    name: Frontend (typecheck + tests + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint (ESLint + jsx-a11y accessibility rules)
+        run: npm run lint
+      - name: Format check (Prettier)
+        run: npm run format:check
+      - name: Unit + accessibility tests (coverage gate ≥90%)
+        run: npm run test:coverage
+      - name: Production build
+        run: npm run build
+
+  e2e:
+    # E2E runs only on pushes to main (not on PRs) to manage CI cost.
+    # It spins up the full stack in offline mode and exercises the user flow.
+    name: E2E (Playwright)
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install chromium --with-deps
+      - name: Run E2E tests
+        working-directory: frontend
+        run: npm run test:e2e
+
+  api-drift:
+    # Ensures frontend TypeScript types stay in sync with the backend OpenAPI schema.
+    name: API contract drift detection
+    runs-on: ubuntu-latest
+    needs: [backend]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Start backend (offline mode)
+        working-directory: backend
+        run: |
+          USE_GEMINI=false USE_FIRESTORE=false \
+            uvicorn app.main:app --port 8000 &
+          sleep 3
+      - name: Generate types from OpenAPI
+        working-directory: frontend
+        run: npm run types:sync
+      - name: Check for type drift
+        working-directory: frontend
+        run: |
+          if git diff --exit-code src/lib/types.ts; then
+            echo "✅ Types are in sync with OpenAPI schema."
+          else
+            echo "❌ Type drift detected! Run 'npm run types:sync' and commit."
+            exit 1
+          fi

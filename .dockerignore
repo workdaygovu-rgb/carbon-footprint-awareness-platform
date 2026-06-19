@@ -1,0 +1,32 @@
+# Python
+**/__pycache__/
+**/*.pyc
+backend/.venv/
+backend/.pytest_cache/
+backend/.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+node_modules/
+
+# Git / CI / docs
+.git/
+.github/
+*.md
+!README.md
+
+# Secrets / env
+.env
+.env.*
+!.env.example
+*-key.json
+service-account*.json
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

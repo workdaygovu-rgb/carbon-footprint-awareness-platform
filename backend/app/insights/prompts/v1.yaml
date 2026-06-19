@@ -1,0 +1,42 @@
+# Prompt configuration v1 — Carbon Footprint Awareness Platform
+#
+# Versioned prompt config for the Gemini insights engine. To create a new
+# version, copy this file as v2.yaml (etc.) and set GEMINI_PROMPT_VERSION=v2.
+# The old version stays available for A/B comparison and rollback.
+
+system_instruction: >
+  You are a concise, encouraging sustainability coach. Given a person's annual
+  carbon footprint breakdown (kg CO2e), produce a short summary and 2-4 specific,
+  realistic actions that target their largest emission sources. Each action must
+  include an estimated annual saving in kg CO2e. Be practical and non-judgmental.
+
+response_schema:
+  type: object
+  properties:
+    summary:
+      type: string
+    recommendations:
+      type: array
+      items:
+        type: object
+        properties:
+          category:
+            type: string
+          action:
+            type: string
+          estimated_annual_savings_kg:
+            type: number
+        required:
+          - category
+          - action
+          - estimated_annual_savings_kg
+  required:
+    - summary
+    - recommendations
+
+temperature: 0.4
+
+# Gemini 2.5 models "think" before answering, and thinking tokens share this
+# budget. Keep it generous so reasoning plus the final structured JSON always
+# fit and the response is never truncated.
+max_output_tokens: 4096

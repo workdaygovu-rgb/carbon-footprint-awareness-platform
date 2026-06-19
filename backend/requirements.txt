@@ -1,0 +1,13 @@
+# Runtime dependencies (pinned for reproducible, auditable builds).
+# Supply-chain note: for maximum security, generate hashes via
+# `pip-compile --generate-hashes` and install with `pip install --require-hashes`.
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.1
+google-genai==1.9.0
+google-cloud-firestore==2.20.0
+slowapi==0.1.9
+python-json-logger==3.2.1
+pyyaml==6.0.2
+cachetools==5.5.1

@@ -1,0 +1,49 @@
+[project]
+name = "carbon-platform-backend"
+version = "1.3.0"
+description = "Carbon Footprint Awareness Platform — FastAPI backend"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Coverage is a hard gate: the build fails if it drops below 90%.
+addopts = "-q --cov=app --cov-report=term-missing --cov-fail-under=90"
+pythonpath = ["."]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+# E/W pycodestyle, F pyflakes, I import order, N naming, D docstrings,
+# UP modernisation, ANN type annotations, B bugbear, C4 comprehensions,
+# SIM simplification, PL pylint, C90 complexity, RUF ruff-native rules.
+select = ["E", "W", "F", "I", "N", "D", "UP", "ANN", "B", "C4", "SIM", "PL", "C90", "RUF"]
+# E501: line length handled by formatter; B008: FastAPI's Depends/Query/Path
+# default-argument pattern is intentional and idiomatic.
+ignore = ["E501", "B008"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+# Tests: docstring/annotation pedantry and "magic" expected values don't apply.
+"tests/**" = ["ANN", "D", "PLR2004"]
+
+[tool.mypy]
+# Strict static type checking for the application code.
+strict = true
+files = ["app"]
+python_version = "3.10"
+# Pydantic ships a mypy plugin that understands model fields and validators.
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+# Google SDKs are imported lazily and ship without complete type stubs.
+module = ["google.*", "google.cloud.*"]
+ignore_missing_imports = true
