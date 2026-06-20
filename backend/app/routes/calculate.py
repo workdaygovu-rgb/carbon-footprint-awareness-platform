@@ -1,12 +1,12 @@
 """Footprint calculation and insights endpoints."""
 
-from fastapi import APIRouter, Depends, Request, Body
+from fastapi import APIRouter, Body, Depends, Request
 
 from app.carbon.calculator import calculate_footprint
 from app.config import Settings, get_settings
 from app.insights.gemini import generate_insights
-from app.rate_limit import limiter
 from app.models import CarbonInput, FootprintResult, InsightsResponse
+from app.rate_limit import limiter
 
 router = APIRouter(prefix="/api", tags=["footprint"])
 

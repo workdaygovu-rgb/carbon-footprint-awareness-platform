@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-
 from app.rate_limit import limiter
+
 
 def test_insights_rate_limit_returns_429_after_burst(client):
     """The /api/insights endpoint is capped at 10 requests/minute per IP."""

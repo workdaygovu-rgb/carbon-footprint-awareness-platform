@@ -10,13 +10,15 @@ v1.3: added injectable ``clock`` for deterministic tests.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Callable
 
 from app.models import CarbonInput, Entry, FootprintResult
 
-# Default clock for production use.
-_now_utc: Callable[[], datetime] = lambda: datetime.now(timezone.utc)
+
+def _now_utc() -> datetime:
+    """Return the current UTC timestamp."""
+    return datetime.now(timezone.utc)
 
 
 class InMemoryEntryRepository:

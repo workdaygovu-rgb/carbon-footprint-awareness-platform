@@ -45,6 +45,7 @@ _SECURITY_HEADERS = {
     ),
 }
 
+
 def _configure_logging() -> None:
     """Set up structured JSON logging for Cloud Logging indexability.
 

@@ -45,8 +45,8 @@ test.describe("Carbon Footprint Calculator Flow", () => {
 
     // ── Step 5: verify insights panel appears ───────────────────────
     await expect(page.getByRole("heading", { name: /personalized insights/i })).toBeVisible();
-    // Source badge should say "Smart rules" (Gemini is disabled).
-    await expect(page.getByText(/smart rules/i)).toBeVisible();
+    // Gemini is disabled; repeated runs may reuse the deterministic cache.
+    await expect(page.getByText(/smart rules|cached insight/i)).toBeVisible();
     // At least one recommendation should be visible.
     await expect(page.getByText(/potential saving/i).first()).toBeVisible();
 
@@ -73,7 +73,7 @@ test.describe("Carbon Footprint Calculator Flow", () => {
     await page.getByRole("button", { name: /calculate my footprint/i }).click();
 
     // The error alert should appear.
-    await expect(page.getByRole("alert")).toContainText(/something went wrong/i, {
+    await expect(page.getByRole("alert")).toContainText(/network error/i, {
       timeout: 5_000,
     });
   });

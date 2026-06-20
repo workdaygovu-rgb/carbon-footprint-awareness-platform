@@ -74,8 +74,8 @@ describe("useFootprint", () => {
     await waitFor(() => expect(api.listEntries).toHaveBeenCalled());
     await act(() => hook.current.calculate(input));
 
-    expect(api.calculate).toHaveBeenCalledWith(input);
-    expect(api.getInsights).toHaveBeenCalledWith(input);
+    expect(api.calculate).toHaveBeenCalledWith(input, { signal: expect.any(AbortSignal) });
+    expect(api.getInsights).toHaveBeenCalledWith(input, { signal: expect.any(AbortSignal) });
     expect(hook.current.result).toEqual(result);
     expect(hook.current.insights).toEqual(insights);
     expect(hook.current.status).toMatch(/ready below/i);
@@ -89,6 +89,35 @@ describe("useFootprint", () => {
     await act(() => hook.current.calculate(emptyInput()));
 
     expect(hook.current.error).toBe("Server error");
+  });
+
+  it("shows a generic error when calculation fails unexpectedly", async () => {
+    vi.mocked(api.calculate).mockRejectedValueOnce(new Error("boom"));
+    const { result: hook } = renderHook(() => useFootprint());
+
+    await waitFor(() => expect(api.listEntries).toHaveBeenCalled());
+    await act(() => hook.current.calculate(emptyInput()));
+
+    expect(hook.current.error).toMatch(/Something went wrong/i);
+  });
+
+  it("ignores history loading failures", async () => {
+    vi.mocked(api.listEntries).mockRejectedValueOnce(new api.ApiError("offline", 0));
+
+    const { result: hook } = renderHook(() => useFootprint());
+
+    await waitFor(() => expect(api.listEntries).toHaveBeenCalled());
+    expect(hook.current.entries).toEqual([]);
+    expect(hook.current.error).toBeNull();
+  });
+
+  it("does not save before a result exists", async () => {
+    const { result: hook } = renderHook(() => useFootprint());
+
+    await waitFor(() => expect(api.listEntries).toHaveBeenCalled());
+    await act(() => hook.current.save());
+
+    expect(api.saveEntry).not.toHaveBeenCalled();
   });
 
   it("saves the latest result and refreshes history", async () => {
@@ -113,5 +142,16 @@ describe("useFootprint", () => {
 
     await act(() => hook.current.save());
     expect(hook.current.error).toBe("Forbidden");
+  });
+
+  it("shows a generic error when saving fails unexpectedly", async () => {
+    vi.mocked(api.saveEntry).mockRejectedValueOnce(new Error("boom"));
+    const { result: hook } = renderHook(() => useFootprint());
+
+    await waitFor(() => expect(api.listEntries).toHaveBeenCalled());
+    await act(() => hook.current.calculate(emptyInput()));
+    await act(() => hook.current.save());
+
+    expect(hook.current.error).toMatch(/Could not save/i);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { NumberField } from "./NumberField";
@@ -49,5 +49,20 @@ describe("NumberField", () => {
     expect(input).toHaveAttribute("max", "50");
     expect(input).toHaveAttribute("step", "1");
     expect(input).toHaveAttribute("inputmode", "numeric");
+  });
+
+  it("uses decimal input mode by default", () => {
+    render(<NumberField id="d" label="Decimal" max={100} value={0} onChange={() => {}} />);
+
+    expect(screen.getByLabelText("Decimal")).toHaveAttribute("inputmode", "decimal");
+  });
+
+  it("coerces non-numeric input events to zero", () => {
+    const onChange = vi.fn();
+    render(<NumberField id="n" label="Amount" max={100} value={0} onChange={onChange} />);
+
+    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "not-a-number" } });
+
+    expect(onChange).toHaveBeenCalledWith(0);
   });
 });

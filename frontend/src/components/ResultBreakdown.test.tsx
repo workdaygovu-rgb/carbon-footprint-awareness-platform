@@ -35,4 +35,22 @@ describe("ResultBreakdown", () => {
     expect(screen.getByRole("table")).toBeInTheDocument();
     expect(screen.getByRole("rowheader", { name: "Diet" })).toBeInTheDocument();
   });
+
+  it("announces when the footprint is at or below the sustainable target", () => {
+    render(
+      <ResultBreakdown
+        result={{
+          ...result,
+          total_annual_kg: 1500,
+          total_annual_tonnes: 1.5,
+          comparison: {
+            ...result.comparison,
+            ratio_to_sustainable_target: 0.75,
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByText(/at or below the sustainable target/i)).toBeInTheDocument();
+  });
 });

@@ -128,7 +128,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the layering rules and
 
 ## 4. Running locally
 
-**Backend** (Python 3.10+):
+**Backend** (Python 3.10-3.13; CI and Docker use 3.12):
 
 ```bash
 cd backend
