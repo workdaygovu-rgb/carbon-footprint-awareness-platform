@@ -3,15 +3,20 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import App from "./App";
+import { emptyInput } from "./lib/types";
 import type { FootprintResult, InsightsResponse } from "./lib/types";
 
 // Mock the API layer so the integration test runs without a backend.
-vi.mock("./lib/api", () => ({
-  calculate: vi.fn(),
-  getInsights: vi.fn(),
-  saveEntry: vi.fn(),
-  listEntries: vi.fn(),
-}));
+vi.mock("./lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./lib/api")>();
+  return {
+    ...actual,
+    calculate: vi.fn(),
+    getInsights: vi.fn(),
+    saveEntry: vi.fn(),
+    listEntries: vi.fn(),
+  };
+});
 
 import * as api from "./lib/api";
 
@@ -44,7 +49,7 @@ beforeEach(() => {
     id: "e1",
     created_at: new Date().toISOString(),
     device_id: "dev-123",
-    input: {} as never,
+    input: emptyInput(),
     result,
   });
 });
@@ -93,20 +98,18 @@ describe("App", () => {
   });
 
   it("shows an error message when calculation fails", async () => {
-    vi.mocked(api.calculate).mockRejectedValueOnce(new Error("boom"));
+    vi.mocked(api.calculate).mockRejectedValueOnce(new api.ApiError("Server error", 500));
     await renderApp();
     await userEvent.click(screen.getByRole("button", { name: /calculate my footprint/i }));
-    await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent(/something went wrong/i),
-    );
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/server error/i));
   });
 
   it("shows an error message when saving fails", async () => {
-    vi.mocked(api.saveEntry).mockRejectedValueOnce(new Error("boom"));
+    vi.mocked(api.saveEntry).mockRejectedValueOnce(new api.ApiError("Forbidden", 403));
     await renderApp();
     await userEvent.click(screen.getByRole("button", { name: /calculate my footprint/i }));
     await waitFor(() => screen.getByRole("button", { name: /save this entry/i }));
     await userEvent.click(screen.getByRole("button", { name: /save this entry/i }));
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/could not save/i));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/forbidden/i));
   });
 });

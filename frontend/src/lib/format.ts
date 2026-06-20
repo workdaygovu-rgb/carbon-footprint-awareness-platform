@@ -1,5 +1,7 @@
 // Display formatting helpers.
 
+import type { CategoryKey } from "./types";
+
 /** Format a kg CO₂e amount for display, e.g. `1,235 kg`. */
 export function formatKg(kg: number): string {
   return `${kg.toLocaleString(undefined, { maximumFractionDigits: 0 })} kg`;
@@ -10,7 +12,7 @@ export function formatTonnes(tonnes: number): string {
   return `${tonnes.toLocaleString(undefined, { maximumFractionDigits: 2 })} t`;
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
+const CATEGORY_LABELS: Record<CategoryKey, string> = {
   transport: "Transport",
   home: "Home energy",
   diet: "Diet",
@@ -18,8 +20,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 /** Map an emission category key to its friendly label (falls back to the key). */
-export function categoryLabel(key: string): string {
-  return CATEGORY_LABELS[key] ?? key;
+export function categoryLabel(key: CategoryKey | string): string {
+  return CATEGORY_LABELS[key as CategoryKey] ?? key;
 }
 
 /** Format an ISO timestamp in the user's locale; pass through invalid input. */

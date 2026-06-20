@@ -20,6 +20,7 @@ Changes in v1.2:
 Changes in v1.3:
 - TTL response cache (60s) to avoid duplicate Gemini calls for identical inputs
 - Source field typed as Literal["gemini", "rules", "cache"]
+- Full type annotations on internal helpers
 """
 
 from __future__ import annotations
@@ -32,6 +33,7 @@ import threading
 import time
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from cachetools import TTLCache
 
@@ -59,7 +61,7 @@ _CACHE_LOCK = threading.Lock()
 
 
 @lru_cache
-def _load_prompt_config(version: str) -> dict:
+def _load_prompt_config(version: str) -> dict[str, Any]:
     """Load and cache the prompt configuration from a versioned YAML file.
 
     Falls back to the inline defaults if the file is missing, so the system
@@ -68,22 +70,26 @@ def _load_prompt_config(version: str) -> dict:
     path = _PROMPTS_DIR / f"{version}.yaml"
     if path.exists():
         with open(path, encoding="utf-8") as f:
-            return yaml.safe_load(f)
+            return yaml.safe_load(f) or {}
     logger.warning("Prompt config %s not found, using inline defaults", path)
     return {}
 
 
-def _get_system_instruction(config: dict) -> str:
-    return config.get(
-        "system_instruction",
-        "You are a concise, encouraging sustainability coach. Given a person's annual "
-        "carbon footprint breakdown (kg CO2e), produce a short summary and 2-4 specific, "
-        "realistic actions that target their largest emission sources. Each action must "
-        "include an estimated annual saving in kg CO2e. Be practical and non-judgmental.",
+def _get_system_instruction(config: dict[str, Any]) -> str:
+    """Return the Gemini system instruction, with an inline default fallback."""
+    return str(
+        config.get(
+            "system_instruction",
+            "You are a concise, encouraging sustainability coach. Given a person's annual "
+            "carbon footprint breakdown (kg CO2e), produce a short summary and 2-4 specific, "
+            "realistic actions that target their largest emission sources. Each action must "
+            "include an estimated annual saving in kg CO2e. Be practical and non-judgmental.",
+        )
     )
 
 
-def _get_response_schema(config: dict) -> dict:
+def _get_response_schema(config: dict[str, Any]) -> dict[str, Any]:
+    """Return the JSON response schema, with an inline default fallback."""
     return config.get("response_schema", {
         "type": "object",
         "properties": {
@@ -106,6 +112,7 @@ def _get_response_schema(config: dict) -> dict:
 
 
 def _build_prompt(data: CarbonInput, result: FootprintResult) -> str:
+    """Serialize the footprint into a concise prompt for the Gemini model."""
     return (
         "Carbon footprint breakdown (kg CO2e per year):\n"
         f"{json.dumps(result.breakdown_kg)}\n"
@@ -117,7 +124,7 @@ def _build_prompt(data: CarbonInput, result: FootprintResult) -> str:
 
 
 def _validate_gemini_response(
-    payload: dict, total_annual_kg: float
+    payload: dict[str, Any], total_annual_kg: float
 ) -> None:
     """Validate Gemini's parsed JSON output beyond structural correctness.
 
@@ -146,7 +153,7 @@ def _validate_gemini_response(
 
 
 @lru_cache
-def _get_gemini_client(project_id: str, region: str):
+def _get_gemini_client(project_id: str, region: str) -> "genai.Client":  # noqa: F821
     """Return a cached Gemini client (avoids re-initializing credentials per call).
 
     Imported lazily so the SDK/credentials are only required when actually used —
@@ -178,8 +185,8 @@ def _call_gemini(
             system_instruction=_get_system_instruction(prompt_config),
             response_mime_type="application/json",
             response_schema=_get_response_schema(prompt_config),
-            temperature=prompt_config.get("temperature", 0.4),
-            max_output_tokens=prompt_config.get("max_output_tokens", 4096),
+            temperature=float(prompt_config.get("temperature", 0.4)),
+            max_output_tokens=int(prompt_config.get("max_output_tokens", 4096)),
         ),
     )
     payload = json.loads(response.text)

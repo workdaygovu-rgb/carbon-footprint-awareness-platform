@@ -8,13 +8,13 @@ import { test, expect } from "@playwright/test";
  * in-memory store) and no GCP credentials are needed.
  */
 test.describe("Carbon Footprint Calculator Flow", () => {
-  test("calculate footprint, view results and insights, save to history", async ({
-    page,
-  }) => {
+  test("calculate footprint, view results and insights, save to history", async ({ page }) => {
     await page.goto("/");
 
     // ── Step 1: verify the form is visible ──────────────────────────
-    await expect(page.getByRole("heading", { name: /estimate your annual footprint/i })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: /estimate your annual footprint/i }),
+    ).toBeVisible();
 
     // ── Step 2: fill out the form with specific values ──────────────
     await page.getByLabel(/car distance per week/i).fill("200");

@@ -10,29 +10,51 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Validated application settings, sourced from the environment / .env."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
 
     # Google Cloud
-    project_id: str = "virtual-prompt-week-3"
-    region: str = "us-central1"
+    project_id: str = Field(
+        default="virtual-prompt-week-3",
+        description="Google Cloud project id hosting Vertex AI and Firestore.",
+    )
+    region: str = Field(
+        default="us-central1",
+        description="Google Cloud region for Vertex AI and Cloud Run.",
+    )
 
     # Feature flags — let the app degrade gracefully without GCP access.
-    use_gemini: bool = True
-    use_firestore: bool = True
-    gemini_model: str = "gemini-2.5-flash"
+    use_gemini: bool = Field(
+        default=True, description="Whether to call Vertex AI Gemini for personalized insights."
+    )
+    use_firestore: bool = Field(
+        default=True, description="Whether to persist history in Cloud Firestore."
+    )
+    gemini_model: str = Field(
+        default="gemini-2.5-flash",
+        description="Gemini model identifier on Vertex AI.",
+    )
 
     # Prompt versioning: selects the prompt config file from
     # app/insights/prompts/{version}.yaml. Changed via GEMINI_PROMPT_VERSION.
-    gemini_prompt_version: str = "v1"
+    gemini_prompt_version: str = Field(
+        default="v1",
+        description="Prompt config version loaded from app/insights/prompts/{version}.yaml.",
+    )
 
     # CORS (the SPA is same-origin in prod; this matters for local dev).
-    allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    allowed_origins: str = Field(
+        default="http://localhost:5173,http://127.0.0.1:5173",
+        description="Comma-separated list of allowed CORS origins.",
+    )
 
     @property
     def origins_list(self) -> list[str]:

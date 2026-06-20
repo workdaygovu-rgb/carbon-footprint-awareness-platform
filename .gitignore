@@ -12,6 +12,7 @@ htmlcov/
 node_modules/
 frontend/dist/
 frontend/coverage/
+frontend/test-results/
 coverage/
 dist/
 *.log

@@ -2,6 +2,25 @@ import { useState } from "react";
 import { type CarbonInput, type CarFuel, type DietType, emptyInput } from "../lib/types";
 import { NumberField } from "./NumberField";
 
+/** Convert a raw string to a known CarFuel, falling back to petrol on drift. */
+function toCarFuel(value: string): CarFuel {
+  const known: CarFuel[] = ["petrol", "diesel", "hybrid", "electric"];
+  return known.includes(value as CarFuel) ? (value as CarFuel) : "petrol";
+}
+
+/** Convert a raw string to a known DietType, falling back to medium_meat. */
+function toDietType(value: string): DietType {
+  const known: DietType[] = [
+    "heavy_meat",
+    "medium_meat",
+    "low_meat",
+    "pescatarian",
+    "vegetarian",
+    "vegan",
+  ];
+  return known.includes(value as DietType) ? (value as DietType) : "medium_meat";
+}
+
 interface Props {
   onSubmit: (input: CarbonInput) => void;
   loading: boolean;
@@ -67,7 +86,7 @@ export function CalculatorForm({ onSubmit, loading }: Props) {
           <select
             id="car_fuel"
             value={input.transport.car_fuel}
-            onChange={(e) => patchTransport({ car_fuel: e.target.value as CarFuel })}
+            onChange={(e) => patchTransport({ car_fuel: toCarFuel(e.target.value) })}
           >
             {FUEL_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -136,7 +155,7 @@ export function CalculatorForm({ onSubmit, loading }: Props) {
           <select
             id="diet"
             value={input.diet}
-            onChange={(e) => setInput((p) => ({ ...p, diet: e.target.value as DietType }))}
+            onChange={(e) => setInput((p) => ({ ...p, diet: toDietType(e.target.value) }))}
           >
             {DIET_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>

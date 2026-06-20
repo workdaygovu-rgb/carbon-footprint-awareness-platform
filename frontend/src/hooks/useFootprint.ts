@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as api from "../lib/api";
 import { getDeviceId } from "../lib/deviceId";
 import type { CarbonInput, Entry, FootprintResult, InsightsResponse } from "../lib/types";
@@ -22,9 +22,24 @@ export function useFootprint() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("");
 
+  // Abort in-flight requests if the component unmounts or a new request starts.
+  const abortRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      abortRef.current?.abort();
+    };
+  }, []);
+
   const loadHistory = useCallback(async () => {
     try {
-      setEntries(await api.listEntries(deviceId));
+      const history = await api.listEntries(deviceId);
+      if (mountedRef.current) {
+        setEntries(history);
+      }
     } catch {
       // History is non-critical; fail silently rather than blocking the app.
     }
@@ -35,38 +50,57 @@ export function useFootprint() {
   }, [loadHistory]);
 
   /** Calculate the footprint and fetch personalized insights for the input. */
-  const calculate = async (input: CarbonInput) => {
+  const calculate = useCallback(async (input: CarbonInput) => {
+    // Cancel any previous calculation/insights request.
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     setError(null);
     setStatus("");
     try {
       const [calc, ins] = await Promise.all([api.calculate(input), api.getInsights(input)]);
+      if (!mountedRef.current || controller.signal.aborted) return;
       setResult(calc);
       setInsights(ins);
       setLastInput(input);
       setStatus("Your footprint results and personalized insights are ready below.");
-    } catch {
-      setError("Something went wrong calculating your footprint. Please try again.");
+    } catch (err) {
+      if (!mountedRef.current || controller.signal.aborted) return;
+      const message =
+        err instanceof api.ApiError
+          ? err.message
+          : "Something went wrong calculating your footprint. Please try again.";
+      setError(message);
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
-  };
+  }, []);
 
   /** Persist the latest result to the device's history and refresh it. */
-  const save = async () => {
+  const save = useCallback(async () => {
     if (!result || !lastInput) return;
     setSaving(true);
     setError(null);
     try {
       await api.saveEntry(deviceId, lastInput, result);
       await loadHistory();
+      if (!mountedRef.current) return;
       setStatus("Entry saved to your history.");
-    } catch {
-      setError("Could not save this entry. Please try again.");
+    } catch (err) {
+      if (!mountedRef.current) return;
+      const message =
+        err instanceof api.ApiError ? err.message : "Could not save this entry. Please try again.";
+      setError(message);
     } finally {
-      setSaving(false);
+      if (mountedRef.current) {
+        setSaving(false);
+      }
     }
-  };
+  }, [deviceId, result, lastInput, loadHistory]);
 
   return { result, insights, entries, loading, saving, error, status, calculate, save };
 }

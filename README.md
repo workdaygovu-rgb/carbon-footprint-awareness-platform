@@ -1,16 +1,16 @@
 # 🌱 Carbon Footprint Awareness Platform
 
-[![CI](https://github.com/Auenchanters/Virtual-Prompt-was-Week-3/actions/workflows/ci.yml/badge.svg)](https://github.com/Auenchanters/Virtual-Prompt-was-Week-3/actions/workflows/ci.yml)
+[![CI](https://github.com/workdaygovu-rgb/carbon-footprint-awareness-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/workdaygovu-rgb/carbon-footprint-awareness-platform/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 > **Virtual PromptWars — Challenge 3.** A web app that helps individuals
 > **understand, track, and reduce** their personal carbon footprint through
 > simple inputs and **personalized, AI-generated insights**.
 
-Built as a single, accessible web application: a **Python / FastAPI** backend and
-a **React + TypeScript** frontend, using **Google Gemini (Vertex AI)** for
-personalized advice and **Firestore** for tracking, deployed to **Google Cloud
-Run** as one container.
+Built by **Somu Astra** as a single, accessible web application: a **Python /
+FastAPI** backend and a **React + TypeScript** frontend, using **Google Gemini
+(Vertex AI)** for personalized advice and **Firestore** for tracking, deployed to
+**Google Cloud Run** as one container.
 
 ## 🔗 Live demo
 

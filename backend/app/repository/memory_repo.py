@@ -4,28 +4,34 @@ Thread-safe enough for a single-process dev server; data is ephemeral and lost o
 restart. Selected automatically when ``USE_FIRESTORE=false``.
 
 v1.2: added async method wrappers for compatibility with async route handlers.
+v1.3: added injectable ``clock`` for deterministic tests.
 """
 
 from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from typing import Callable
 
 from app.models import CarbonInput, Entry, FootprintResult
+
+# Default clock for production use.
+_now_utc: Callable[[], datetime] = lambda: datetime.now(timezone.utc)
 
 
 class InMemoryEntryRepository:
     """EntryRepository backed by a process-local dictionary."""
 
-    def __init__(self) -> None:
-        """Start with an empty per-device store."""
+    def __init__(self, clock: Callable[[], datetime] | None = None) -> None:
+        """Start with an empty per-device store and an optional clock override."""
         self._by_device: dict[str, list[Entry]] = {}
+        self._clock = clock or _now_utc
 
     def add(self, device_id: str, data: CarbonInput, result: FootprintResult) -> Entry:
         """Persist a new entry for the device and return it with id/timestamp."""
         entry = Entry(
             id=uuid.uuid4().hex,
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=self._clock().isoformat(),
             device_id=device_id,
             input=data,
             result=result,

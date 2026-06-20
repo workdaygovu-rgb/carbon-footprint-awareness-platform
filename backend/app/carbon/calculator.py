@@ -12,6 +12,7 @@ from __future__ import annotations
 from app.carbon import factors
 from app.models import (
     CarbonInput,
+    CategoryKey,
     Comparison,
     ConsumptionInput,
     FootprintResult,
@@ -49,7 +50,7 @@ def _consumption_annual_kg(c: ConsumptionInput) -> float:
 
 def calculate_footprint(data: CarbonInput) -> FootprintResult:
     """Compute the annual carbon footprint breakdown for a set of inputs."""
-    breakdown = {
+    breakdown: dict[CategoryKey, float] = {
         "transport": round(_transport_annual_kg(data.transport), 2),
         "home": round(_home_annual_kg(data.home), 2),
         "diet": round(factors.DIET_ANNUAL_KG[data.diet], 2),

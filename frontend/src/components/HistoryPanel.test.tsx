@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { axe } from "vitest-axe";
 import { HistoryPanel } from "./HistoryPanel";
+import { emptyInput } from "../lib/types";
 import type { Entry, FootprintResult } from "../lib/types";
 
 function makeEntry(id: string, createdAt: string, tonnes: number): Entry {
@@ -20,7 +21,7 @@ function makeEntry(id: string, createdAt: string, tonnes: number): Entry {
     id,
     created_at: createdAt,
     device_id: "dev-test-1234",
-    input: {} as never,
+    input: emptyInput(),
     result,
   };
 }

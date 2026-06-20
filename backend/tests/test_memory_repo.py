@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from app.carbon.calculator import calculate_footprint
 from app.models import CarbonInput
 from app.repository.memory_repo import InMemoryEntryRepository
@@ -36,18 +38,13 @@ def test_list_respects_limit():
     assert len(repo.list_for_device("device-cccc3333", limit=3)) == 3
 
 
-def test_list_returns_newest_first(monkeypatch):
-    from datetime import datetime
-
+def test_list_returns_newest_first():
     ticks = iter(range(1, 10))
 
-    class _TickingDatetime:
-        @staticmethod
-        def now(tz=None):
-            return datetime(2026, 1, 1, 0, 0, next(ticks), tzinfo=tz)
+    def ticking_clock() -> datetime:
+        return datetime(2026, 1, 1, 0, 0, next(ticks), tzinfo=timezone.utc)
 
-    monkeypatch.setattr("app.repository.memory_repo.datetime", _TickingDatetime)
-    repo = InMemoryEntryRepository()
+    repo = InMemoryEntryRepository(clock=ticking_clock)
     first = _make(repo, "device-dddd4444")
     second = _make(repo, "device-dddd4444")
     third = _make(repo, "device-dddd4444")

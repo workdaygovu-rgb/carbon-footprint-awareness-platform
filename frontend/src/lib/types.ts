@@ -10,6 +10,9 @@ export type DietType =
   | "vegetarian"
   | "vegan";
 
+/** Valid emission-category keys returned by the carbon engine. */
+export type CategoryKey = "transport" | "home" | "diet" | "consumption";
+
 export interface CarbonInput {
   transport: {
     car_km_per_week: number;
@@ -38,14 +41,14 @@ export interface Comparison {
 }
 
 export interface FootprintResult {
-  breakdown_kg: Record<string, number>;
+  breakdown_kg: Record<CategoryKey, number>;
   total_annual_kg: number;
   total_annual_tonnes: number;
   comparison: Comparison;
 }
 
 export interface Recommendation {
-  category: string;
+  category: CategoryKey;
   action: string;
   estimated_annual_savings_kg: number;
 }

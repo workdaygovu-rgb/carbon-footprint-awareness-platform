@@ -9,7 +9,7 @@ from app import __version__
 router = APIRouter(tags=["system"])
 
 
-@router.get("/api/health")
+@router.get("/api/health", response_model=dict[str, str], summary="Health check")
 def health() -> dict[str, str]:
     """Report service liveness and the running application version."""
     return {"status": "ok", "version": __version__}

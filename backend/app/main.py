@@ -65,8 +65,14 @@ def _configure_logging() -> None:
     root.setLevel(logging.INFO)
 
 
-def create_app() -> FastAPI:
-    """Build the FastAPI application: middleware, routers, and SPA mount."""
+def create_app(static_dir: Path | None = None) -> FastAPI:
+    """Build the FastAPI application: middleware, routers, and SPA mount.
+
+    Args:
+        static_dir: Optional directory containing the built React SPA. Defaults
+            to the standard ``static`` folder next to the app package. Exposed
+            primarily for tests that want to serve a temporary build.
+    """
     _configure_logging()
     settings = get_settings()
     app = FastAPI(
@@ -150,27 +156,27 @@ def create_app() -> FastAPI:
     app.include_router(calculate.router)
     app.include_router(entries.router)
 
-    _mount_spa(app)
+    _mount_spa(app, static_dir or _STATIC_DIR)
     return app
 
 
-def _mount_spa(app: FastAPI) -> None:
+def _mount_spa(app: FastAPI, static_dir: Path) -> None:
     """Serve the built SPA (if present) with client-side-routing fallback."""
-    if not _STATIC_DIR.exists():
+    if not static_dir.exists():
         return
 
-    assets = _STATIC_DIR / "assets"
+    assets = static_dir / "assets"
     if assets.exists():
         app.mount("/assets", StaticFiles(directory=assets), name="assets")
 
-    index = _STATIC_DIR / "index.html"
+    index = static_dir / "index.html"
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def spa(full_path: str) -> Response:
         # API 404s should stay JSON, not fall through to index.html.
-        if full_path.startswith("api/"):
+        if full_path == "api" or full_path.startswith("api/"):
             return JSONResponse({"detail": "Not Found"}, status_code=404)
-        candidate = _STATIC_DIR / full_path
+        candidate = static_dir / full_path
         if full_path and candidate.is_file():
             return FileResponse(candidate)
         return FileResponse(index)

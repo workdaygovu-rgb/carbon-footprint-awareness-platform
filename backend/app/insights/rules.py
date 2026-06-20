@@ -11,13 +11,18 @@ for the biggest contributors, each with a quantified annual saving estimate.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from app.carbon import factors
-from app.models import CarbonInput, FootprintResult, InsightsResponse, Recommendation
+from app.models import CarbonInput, CategoryKey, FootprintResult, InsightsResponse, Recommendation
+
+# Maximum number of recommendations shown to the user.
+_MAX_RECOMMENDATIONS = 4
 
 # Achievable reduction shares behind each recommendation's savings estimate.
 # Deliberately conservative round figures for awareness-level guidance:
-_FLIGHT_REDUCTION_SHARE = 0.5  # replace/combine flights → roughly halve aviation
-_HOME_ENERGY_REDUCTION_SHARE = 0.33  # renewable tariff + insulation → ~a third
+_FLIGHT_REDUCTION_SHARE = 0.5  # replace/combine flights -> roughly halve aviation
+_HOME_ENERGY_REDUCTION_SHARE = 0.33  # renewable tariff + insulation -> ~ a third
 _CONSUMPTION_REDUCTION_SHARE = 0.25  # durable/second-hand goods, less landfill
 _GENERIC_TRANSPORT_REDUCTION_SHARE = 0.2  # carpooling/transit for routine trips
 
@@ -33,16 +38,23 @@ _DIET_LADDER = [
 
 
 def _transport_recommendation(data: CarbonInput, amount: float) -> Recommendation | None:
+    """Emit the single highest-impact transport action for this user."""
     t = data.transport
-    flights_km = (
-        t.short_haul_flights_per_year * factors.SHORT_HAUL_TRIP_KM
-        + t.long_haul_flights_per_year * factors.LONG_HAUL_TRIP_KM
+    short_flights = t.short_haul_flights_per_year
+    long_flights = t.long_haul_flights_per_year
+
+    # Estimate actual annual flight emissions using the appropriate per-km factor
+    # for each flight class, not a single blended factor.
+    flight_emissions = (
+        short_flights * factors.SHORT_HAUL_TRIP_KM * factors.FLIGHT_SHORT_HAUL_PER_KM
+        + long_flights * factors.LONG_HAUL_TRIP_KM * factors.FLIGHT_LONG_HAUL_PER_KM
     )
     car_km_year = t.car_km_per_week * factors.WEEKS_PER_YEAR
     car_emissions = car_km_year * factors.CAR_FACTORS_PER_KM[t.car_fuel]
-    flying = t.short_haul_flights_per_year + t.long_haul_flights_per_year > 0
+    flying = short_flights + long_flights > 0
+
     # Address whichever sub-source is larger: flying or driving.
-    if flying and flights_km * factors.FLIGHT_LONG_HAUL_PER_KM > car_emissions:
+    if flying and flight_emissions > car_emissions:
         return Recommendation(
             category="transport",
             action="Replace one or more flights per year with rail or video calls, "
@@ -112,7 +124,7 @@ def _consumption_recommendation(amount: float) -> Recommendation | None:
 
 def generate_rule_based_insights(data: CarbonInput, result: FootprintResult) -> InsightsResponse:
     """Produce ranked, quantified recommendations from the footprint breakdown."""
-    builders = {
+    builders: dict[CategoryKey, Callable[[float], Recommendation | None]] = {
         "transport": lambda amt: _transport_recommendation(data, amt),
         "home": _home_recommendation,
         "diet": lambda _amt: _diet_recommendation(data),
@@ -133,7 +145,8 @@ def generate_rule_based_insights(data: CarbonInput, result: FootprintResult) -> 
     if total <= target:
         summary = (
             f"Your estimated footprint is {result.total_annual_tonnes} t CO2e/yr — at or below "
-            f"the sustainable target of {target / 1000:.1f} t. Keep it up, and lock in these habits."
+            f"the sustainable target of {target / 1000:.1f} t. "
+            "Keep it up, and lock in these habits."
         )
     else:
         over = round((total - target) / 1000, 2)
@@ -145,6 +158,6 @@ def generate_rule_based_insights(data: CarbonInput, result: FootprintResult) -> 
 
     return InsightsResponse(
         summary=summary,
-        recommendations=recommendations[:4],
+        recommendations=recommendations[:_MAX_RECOMMENDATIONS],
         source="rules",
     )

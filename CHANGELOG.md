@@ -4,6 +4,46 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [1.3.1] - 2026-06-20
+
+### Added
+
+- **Pydantic field descriptions**: every model and settings field now carries a
+  `description`, improving OpenAPI schema coverage and generated documentation.
+- **Tighter category typing**: introduced `CategoryKey` (`transport` | `home` |
+  `diet` | `consumption`) in both backend and frontend, replacing loose
+  `str` / `Record<string, number>` types.
+- **Deterministic in-memory repository clock**: `InMemoryEntryRepository`
+  accepts an injectable `clock`, removing fragile `datetime` monkeypatching
+  from tests.
+- **API error class**: frontend `api.ts` now throws typed `ApiError`s with
+  status codes, so `useFootprint` can surface backend messages precisely.
+- **useFootprint unit tests**: direct hook coverage for calculate, save,
+  history loading, and error paths.
+
+### Changed
+
+- **Rule-engine flight comparison** now computes short-haul and long-haul
+  emissions separately instead of applying the long-haul factor to all flights.
+- **useFootprint** memoizes `calculate`/`save` with `useCallback`, uses an
+  `AbortController` to ignore stale results, and guards against state updates
+  after unmount.
+- **SPA mount** accepts an optional `static_dir` parameter, removing the need
+  for tests to monkeypatch a private module constant.
+- **Gemini client helpers** now have complete type annotations and use
+  `dict[str, Any]` instead of bare `dict`.
+- **Frontend select handlers** validate against known option lists instead of
+  casting raw strings.
+
+### Fixed
+
+- `/api` (without trailing slash) no longer falls through to the SPA index.
+- `InsightsPanel` correctly labels cached responses and uses `aria-label`
+  instead of a hover-only `title`.
+- `ResultBreakdown` hides the directional arrow from screen readers.
+- Replaced `as never` test type hacks with `emptyInput()` fixtures.
+- Removed en-dash / non-ASCII characters flagged by lint rules.
+
 ## [1.3.0] - 2026-06-12
 
 ### Added

@@ -1,4 +1,4 @@
-import type { FootprintResult } from "../lib/types";
+import type { CategoryKey, FootprintResult } from "../lib/types";
 import { categoryLabel, formatKg, formatTonnes } from "../lib/format";
 
 interface Props {
@@ -11,7 +11,7 @@ interface Props {
  * understandable without color or vision (no canvas, no color-only encoding).
  */
 export function ResultBreakdown({ result }: Props) {
-  const entries = Object.entries(result.breakdown_kg);
+  const entries = Object.entries(result.breakdown_kg) as [CategoryKey, number][];
   const max = Math.max(1, ...entries.map(([, v]) => v));
   const overTarget = result.comparison.ratio_to_sustainable_target > 1;
 
@@ -21,7 +21,7 @@ export function ResultBreakdown({ result }: Props) {
 
       <p>
         <span className={`total ${overTarget ? "over" : "under"}`}>
-          {overTarget ? "↑ " : "↓ "}
+          <span aria-hidden="true">{overTarget ? "↑ " : "↓ "}</span>
           {formatTonnes(result.total_annual_tonnes)} CO₂e
         </span>{" "}
         per year

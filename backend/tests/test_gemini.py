@@ -36,7 +36,6 @@ def _fake_genai_client(response_text: str):
 
 @pytest.mark.asyncio
 async def test_disabled_gemini_uses_rules():
-    gemini._INSIGHTS_CACHE.clear()
     data, result = _ctx()
     resp = await gemini.generate_insights(data, result, Settings(use_gemini=False))
     assert resp.source == "rules"
@@ -44,7 +43,6 @@ async def test_disabled_gemini_uses_rules():
 
 @pytest.mark.asyncio
 async def test_gemini_failure_falls_back_to_rules(monkeypatch):
-    gemini._INSIGHTS_CACHE.clear()
     def boom(*_args, **_kwargs):
         raise RuntimeError("vertex unavailable")
 
@@ -72,7 +70,6 @@ def test_call_gemini_parses_structured_response(monkeypatch):
         ],
     }
     monkeypatch.setattr("google.genai.Client", _fake_genai_client(json.dumps(payload)))
-    gemini._get_gemini_client.cache_clear()
     data, result = _ctx()
     resp = gemini._call_gemini(data, result, Settings())
     assert resp.source == "gemini"
@@ -80,36 +77,28 @@ def test_call_gemini_parses_structured_response(monkeypatch):
     assert len(resp.recommendations) == 2
     # Savings are rounded to 2 decimal places for display.
     assert resp.recommendations[0].estimated_annual_savings_kg == 400.12
-    gemini._get_gemini_client.cache_clear()
 
 
 @pytest.mark.asyncio
 async def test_empty_gemini_recommendations_fall_back_to_rules(monkeypatch):
-    gemini._INSIGHTS_CACHE.clear()
     payload = {"summary": "ok", "recommendations": []}
     monkeypatch.setattr("google.genai.Client", _fake_genai_client(json.dumps(payload)))
-    gemini._get_gemini_client.cache_clear()
     data, result = _ctx()
     resp = await gemini.generate_insights(data, result, Settings(use_gemini=True))
     assert resp.source == "rules"
-    gemini._get_gemini_client.cache_clear()
 
 
 @pytest.mark.asyncio
 async def test_malformed_gemini_json_falls_back_to_rules(monkeypatch):
-    gemini._INSIGHTS_CACHE.clear()
     monkeypatch.setattr("google.genai.Client", _fake_genai_client("not valid json {"))
-    gemini._get_gemini_client.cache_clear()
     data, result = _ctx()
     resp = await gemini.generate_insights(data, result, Settings(use_gemini=True))
     assert resp.source == "rules"
     assert resp.recommendations
-    gemini._get_gemini_client.cache_clear()
 
 
 @pytest.mark.asyncio
 async def test_gemini_success_path(monkeypatch):
-    gemini._INSIGHTS_CACHE.clear()
     canned = InsightsResponse(
         summary="Great progress!",
         recommendations=[
@@ -155,7 +144,11 @@ def test_validate_rejects_unknown_category():
     payload = {
         "summary": "Fine.",
         "recommendations": [
-            {"category": "crypto_mining", "action": "Stop mining", "estimated_annual_savings_kg": 100},
+            {
+                "category": "crypto_mining",
+                "action": "Stop mining",
+                "estimated_annual_savings_kg": 100,
+            },
         ],
     }
     with pytest.raises(ValueError, match="Unknown category"):
@@ -188,7 +181,6 @@ def test_validate_accepts_valid_response():
 @pytest.mark.asyncio
 async def test_validation_failure_triggers_rules_fallback(monkeypatch):
     """If Gemini returns out-of-bounds savings, the fallback engine is used."""
-    gemini._INSIGHTS_CACHE.clear()
     bad_payload = {
         "summary": "ok",
         "recommendations": [
@@ -196,12 +188,9 @@ async def test_validation_failure_triggers_rules_fallback(monkeypatch):
         ],
     }
     monkeypatch.setattr("google.genai.Client", _fake_genai_client(json.dumps(bad_payload)))
-    gemini._get_gemini_client.cache_clear()
     data, result = _ctx()
     resp = await gemini.generate_insights(data, result, Settings(use_gemini=True))
     assert resp.source == "rules"  # fell back because validation failed
-    gemini._get_gemini_client.cache_clear()
-    gemini._INSIGHTS_CACHE.clear()
 
 
 # ── Client caching test (Improvement 3) ───────────────────────────────
@@ -217,13 +206,10 @@ def test_gemini_client_is_cached(monkeypatch):
             call_count += 1
 
     monkeypatch.setattr("google.genai.Client", _CountingClient)
-    gemini._get_gemini_client.cache_clear()
-
     gemini._get_gemini_client("project-a", "us-central1")
     gemini._get_gemini_client("project-a", "us-central1")
 
     assert call_count == 1  # only one instantiation despite two calls
-    gemini._get_gemini_client.cache_clear()
 
 
 # ── Response cache tests (Improvement 2, v1.3) ────────────────────────
@@ -232,7 +218,6 @@ def test_gemini_client_is_cached(monkeypatch):
 @pytest.mark.asyncio
 async def test_insights_cache_returns_cached_result():
     """Second call with identical input should return source='cache'."""
-    gemini._INSIGHTS_CACHE.clear()
     data, result = _ctx()
     settings = Settings(use_gemini=False)
 
@@ -243,13 +228,11 @@ async def test_insights_cache_returns_cached_result():
     assert resp2.source == "cache"
     assert resp2.summary == resp1.summary
     assert resp2.recommendations == resp1.recommendations
-    gemini._INSIGHTS_CACHE.clear()
 
 
 @pytest.mark.asyncio
 async def test_insights_cache_miss_on_different_input():
     """Different input data should not hit the cache."""
-    gemini._INSIGHTS_CACHE.clear()
     data1 = CarbonInput()
     result1 = calculate_footprint(data1)
     settings = Settings(use_gemini=False)
@@ -258,9 +241,9 @@ async def test_insights_cache_miss_on_different_input():
 
     # Different input (heavy meat diet).
     from app.carbon.factors import DietType
+
     data2 = CarbonInput(diet=DietType.HEAVY_MEAT)
     result2 = calculate_footprint(data2)
 
     resp2 = await gemini.generate_insights(data2, result2, settings)
-    assert resp2.source == "rules"  # cache miss → fresh rules call
-    gemini._INSIGHTS_CACHE.clear()
+    assert resp2.source == "rules"  # cache miss -> fresh rules call

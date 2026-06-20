@@ -17,15 +17,15 @@ def spa_client(tmp_path, monkeypatch):
     monkeypatch.setenv("USE_GEMINI", "false")
     monkeypatch.setenv("USE_FIRESTORE", "false")
 
-    from app import config, deps, main
+    from app import config, deps
 
     config.get_settings.cache_clear()
     deps.get_repository.cache_clear()
-    monkeypatch.setattr(main, "_STATIC_DIR", static)
 
+    from app.main import create_app
     from fastapi.testclient import TestClient
 
-    with TestClient(main.create_app()) as client:
+    with TestClient(create_app(static_dir=static)) as client:
         yield client
 
     config.get_settings.cache_clear()
@@ -55,6 +55,13 @@ def test_unknown_api_route_stays_json_404(spa_client):
     assert resp.status_code == 404
     assert resp.headers["content-type"].startswith("application/json")
     assert resp.json() == {"detail": "Not Found"}
+
+
+def test_exact_api_path_stays_json_404(spa_client):
+    """The bare '/api' prefix must not be served the SPA index."""
+    resp = spa_client.get("/api")
+    assert resp.status_code == 404
+    assert resp.headers["content-type"].startswith("application/json")
 
 
 def test_api_still_works_with_spa_mounted(spa_client):
