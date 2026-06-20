@@ -33,15 +33,17 @@ import threading
 import time
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
-
-from cachetools import TTLCache
+from typing import TYPE_CHECKING, Any, cast
 
 import yaml
+from cachetools import TTLCache
 
 from app.config import Settings
 from app.insights.rules import generate_rule_based_insights
 from app.models import CarbonInput, FootprintResult, InsightsResponse, Recommendation
+
+if TYPE_CHECKING:
+    from google import genai
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +58,7 @@ _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
 # TTL cache for insights responses — avoids duplicate Gemini calls when a user
 # re-submits identical data within 60 seconds.  Thread-safe via a lock.
-_INSIGHTS_CACHE: TTLCache = TTLCache(maxsize=256, ttl=60)
+_INSIGHTS_CACHE: TTLCache[str, InsightsResponse] = TTLCache(maxsize=256, ttl=60)
 _CACHE_LOCK = threading.Lock()
 
 
@@ -70,7 +72,7 @@ def _load_prompt_config(version: str) -> dict[str, Any]:
     path = _PROMPTS_DIR / f"{version}.yaml"
     if path.exists():
         with open(path, encoding="utf-8") as f:
-            return yaml.safe_load(f) or {}
+            return cast(dict[str, Any], yaml.safe_load(f) or {})
     logger.warning("Prompt config %s not found, using inline defaults", path)
     return {}
 
@@ -90,7 +92,7 @@ def _get_system_instruction(config: dict[str, Any]) -> str:
 
 def _get_response_schema(config: dict[str, Any]) -> dict[str, Any]:
     """Return the JSON response schema, with an inline default fallback."""
-    return config.get("response_schema", {
+    default_schema: dict[str, Any] = {
         "type": "object",
         "properties": {
             "summary": {"type": "string"},
@@ -108,7 +110,8 @@ def _get_response_schema(config: dict[str, Any]) -> dict[str, Any]:
             },
         },
         "required": ["summary", "recommendations"],
-    })
+    }
+    return cast(dict[str, Any], config.get("response_schema", default_schema))
 
 
 def _build_prompt(data: CarbonInput, result: FootprintResult) -> str:
@@ -123,9 +126,7 @@ def _build_prompt(data: CarbonInput, result: FootprintResult) -> str:
     )
 
 
-def _validate_gemini_response(
-    payload: dict[str, Any], total_annual_kg: float
-) -> None:
+def _validate_gemini_response(payload: dict[str, Any], total_annual_kg: float) -> None:
     """Validate Gemini's parsed JSON output beyond structural correctness.
 
     Raises ValueError if any recommendation has impossible savings, an unknown
@@ -153,7 +154,7 @@ def _validate_gemini_response(
 
 
 @lru_cache
-def _get_gemini_client(project_id: str, region: str) -> "genai.Client":  # noqa: F821
+def _get_gemini_client(project_id: str, region: str) -> genai.Client:
     """Return a cached Gemini client (avoids re-initializing credentials per call).
 
     Imported lazily so the SDK/credentials are only required when actually used —
@@ -218,7 +219,9 @@ def _cache_key(data: CarbonInput) -> str:
 
 
 async def generate_insights(
-    data: CarbonInput, result: FootprintResult, settings: Settings,
+    data: CarbonInput,
+    result: FootprintResult,
+    settings: Settings,
     device_id: str = "",
 ) -> InsightsResponse:
     """Return personalized insights, preferring Gemini and falling back to rules.

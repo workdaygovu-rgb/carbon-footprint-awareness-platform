@@ -60,7 +60,11 @@ export function useFootprint() {
     setError(null);
     setStatus("");
     try {
-      const [calc, ins] = await Promise.all([api.calculate(input), api.getInsights(input)]);
+      const requestOptions = { signal: controller.signal };
+      const [calc, ins] = await Promise.all([
+        api.calculate(input, requestOptions),
+        api.getInsights(input, requestOptions),
+      ]);
       if (!mountedRef.current || controller.signal.aborted) return;
       setResult(calc);
       setInsights(ins);

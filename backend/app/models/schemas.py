@@ -120,9 +120,7 @@ class FootprintResult(BaseModel):
 class Recommendation(BaseModel):
     """One concrete reduction action with a quantified annual saving."""
 
-    category: CategoryKey = Field(
-        ..., description="Emission category this recommendation targets."
-    )
+    category: CategoryKey = Field(..., description="Emission category this recommendation targets.")
     action: str = Field(..., description="Concrete, user-facing reduction action.")
     estimated_annual_savings_kg: float = Field(
         ..., ge=0, description="Estimated annual saving in kg CO2e if the action is taken."

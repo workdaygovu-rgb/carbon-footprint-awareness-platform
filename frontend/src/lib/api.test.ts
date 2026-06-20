@@ -25,6 +25,16 @@ function mockFetch(status: number, body: unknown) {
   return fn;
 }
 
+function mockFetchWithJsonError(status: number) {
+  const fn = vi.fn().mockResolvedValue({
+    ok: status >= 200 && status < 300,
+    status,
+    json: () => Promise.reject(new Error("bad json")),
+  });
+  vi.stubGlobal("fetch", fn);
+  return fn;
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -32,17 +42,41 @@ afterEach(() => {
 describe("api client", () => {
   it("posts the input to /api/calculate and returns the result", async () => {
     const fetchMock = mockFetch(200, result);
-    const res = await api.calculate(emptyInput());
+    const controller = new AbortController();
+    const res = await api.calculate(emptyInput(), { signal: controller.signal });
     expect(res.total_annual_kg).toBe(1050);
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("/api/calculate");
     expect(init.method).toBe("POST");
     expect(init.headers["Content-Type"]).toBe("application/json");
+    expect(init.signal).toBe(controller.signal);
   });
 
   it("throws a descriptive error when the server responds non-2xx", async () => {
     mockFetch(422, { detail: "invalid" });
     await expect(api.getInsights(emptyInput())).rejects.toThrow(/\/api\/insights.*422/);
+  });
+
+  it("falls back to a status-only error when the error body is malformed", async () => {
+    mockFetchWithJsonError(500);
+    await expect(api.getInsights(emptyInput())).rejects.toThrow(
+      "Request to /api/insights failed (500)",
+    );
+  });
+
+  it("throws a network ApiError when POST fetch fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    await expect(api.calculate(emptyInput())).rejects.toMatchObject({
+      name: "ApiError",
+      status: 0,
+    });
+  });
+
+  it("throws when a successful POST response is not JSON", async () => {
+    mockFetchWithJsonError(200);
+    await expect(api.calculate(emptyInput())).rejects.toThrow(
+      "Invalid JSON response from /api/calculate",
+    );
   });
 
   it("sends device id, input and result when saving an entry", async () => {
@@ -62,12 +96,29 @@ describe("api client", () => {
 
   it("URL-encodes the device id when listing entries", async () => {
     const fetchMock = mockFetch(200, []);
-    await api.listEntries("dev-abc12345");
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/entries/dev-abc12345");
+    const controller = new AbortController();
+    await api.listEntries("dev-abc 12345", { signal: controller.signal });
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/entries/dev-abc%2012345");
+    expect(fetchMock.mock.calls[0][1].signal).toBe(controller.signal);
   });
 
   it("throws when history cannot be loaded", async () => {
     mockFetch(500, {});
     await expect(api.listEntries("dev-abc12345")).rejects.toThrow(/500/);
+  });
+
+  it("throws a network ApiError when history fetch fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    await expect(api.listEntries("dev-abc12345")).rejects.toMatchObject({
+      name: "ApiError",
+      status: 0,
+    });
+  });
+
+  it("throws when history returns invalid JSON", async () => {
+    mockFetchWithJsonError(200);
+    await expect(api.listEntries("dev-abc12345")).rejects.toThrow(
+      "Invalid history response from server",
+    );
   });
 });

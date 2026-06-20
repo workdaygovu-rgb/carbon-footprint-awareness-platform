@@ -15,7 +15,7 @@ Dockerfile  Multi-stage build (node build → python runtime)
 
 ## Development setup
 
-### Backend (Python 3.10+)
+### Backend (Python 3.10-3.13)
 
 ```bash
 cd backend
