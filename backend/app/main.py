@@ -66,6 +66,90 @@ def _configure_logging() -> None:
     root.setLevel(logging.INFO)
 
 
+def _register_rate_limit_handler(app: FastAPI) -> None:
+    """Attach the SlowAPI rate-limit handler and register the limiter on app state."""
+
+    app.state.limiter = limiter
+
+    @app.exception_handler(RateLimitExceeded)
+    async def _rate_limit_handler(
+        request: Request, exc: RateLimitExceeded
+    ) -> Response:
+        return JSONResponse(
+            {"detail": "Rate limit exceeded. Please try again shortly."},
+            status_code=429,
+            headers={"Retry-After": "60"},
+        )
+
+
+def _add_cors(app: FastAPI, settings: Settings) -> None:
+    """Apply restrictive CORS — the SPA is same-origin in production."""
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.origins_list,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type"],
+    )
+
+
+def _add_security_middleware(app: FastAPI) -> None:
+    """Apply defence-in-depth security response headers to every response."""
+
+    @app.middleware("http")
+    async def _add_security_headers(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        response = await call_next(request)
+        for key, value in _SECURITY_HEADERS.items():
+            response.headers.setdefault(key, value)
+        return response
+
+
+def _add_body_size_limiter(app: FastAPI) -> None:
+    """Reject POST requests whose body exceeds _MAX_BODY_BYTES.
+
+    Defence-in-depth: Pydantic validates field *values*, but the JSON parser
+    must first buffer the entire body into memory. This middleware enforces
+    two checks:
+
+    1. **Header check** — fast-reject if Content-Length declares a size above
+       the limit (handles well-behaved clients).
+    2. **Streaming check** — reads the actual body bytes, aborting with 413
+       if the limit is exceeded.
+    """
+
+    @app.middleware("http")
+    async def _body_size_limiter(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        if request.method != "POST":
+            return await call_next(request)
+
+        # Fast reject via declared Content-Length (if present and valid).
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                if int(content_length) > _MAX_BODY_BYTES:
+                    return JSONResponse(
+                        {"detail": "Request body too large."},
+                        status_code=413,
+                    )
+            except ValueError:
+                return JSONResponse(
+                    {"detail": "Invalid Content-Length header."},
+                    status_code=400,
+                )
+
+        # Streaming check: count actual bytes received.
+        body = await request.body()
+        if len(body) > _MAX_BODY_BYTES:
+            return JSONResponse(
+                {"detail": "Request body too large."},
+                status_code=413,
+            )
+        return await call_next(request)
+
+
 def create_app(static_dir: Path | None = None) -> FastAPI:
     """Build the FastAPI application: middleware, routers, and SPA mount.
 
@@ -82,75 +166,10 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
         description="Understand, track, and reduce your carbon footprint.",
     )
 
-    # Attach the rate limiter to the app so SlowAPI can resolve it.
-    app.state.limiter = limiter
-
-    @app.exception_handler(RateLimitExceeded)
-    async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> Response:
-        return JSONResponse(
-            {"detail": "Rate limit exceeded. Please try again shortly."},
-            status_code=429,
-            headers={"Retry-After": "60"},
-        )
-
-    # CORS — restricted to configured origins (SPA is same-origin in production).
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.origins_list,
-        allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type"],
-    )
-
-    @app.middleware("http")
-    async def security_headers(
-        request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
-        response = await call_next(request)
-        for key, value in _SECURITY_HEADERS.items():
-            response.headers.setdefault(key, value)
-        return response
-
-    @app.middleware("http")
-    async def body_size_limiter(
-        request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
-        """Reject POST requests whose body exceeds _MAX_BODY_BYTES.
-
-        Defence-in-depth: Pydantic validates field *values*, but the JSON parser
-        must first buffer the entire body into memory. This middleware enforces
-        two checks:
-
-        1. **Header check** — fast-reject if Content-Length declares a size above
-           the limit (handles well-behaved clients). Wrapped in try/except to
-           guard against non-numeric Content-Length values.
-        2. **Streaming check** — reads the actual body bytes, aborting with 413
-           if the limit is exceeded. This catches clients that omit or lie about
-           Content-Length.
-        """
-        if request.method == "POST":
-            # Fast reject via declared Content-Length (if present and valid).
-            content_length = request.headers.get("content-length")
-            if content_length:
-                try:
-                    if int(content_length) > _MAX_BODY_BYTES:
-                        return JSONResponse(
-                            {"detail": "Request body too large."},
-                            status_code=413,
-                        )
-                except ValueError:
-                    return JSONResponse(
-                        {"detail": "Invalid Content-Length header."},
-                        status_code=400,
-                    )
-
-            # Streaming check: count actual bytes received.
-            body = await request.body()
-            if len(body) > _MAX_BODY_BYTES:
-                return JSONResponse(
-                    {"detail": "Request body too large."},
-                    status_code=413,
-                )
-        return await call_next(request)
+    _register_rate_limit_handler(app)
+    _add_cors(app, settings)
+    _add_security_middleware(app)
+    _add_body_size_limiter(app)
 
     # API routes.
     app.include_router(health.router)
